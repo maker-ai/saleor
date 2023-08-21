@@ -28,16 +28,21 @@ jobs:
         aws-secret-access-key: ${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Build Docker image
-      run: docker build -t saleor .
-
     - name: Login to Amazon ECR Public
       id: login-ecr-public
-      run: aws ecr-public get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username villapalos --password-stdin public.ecr.aws/u0e8i1r4
+      uses: aws-actions/amazon-ecr-login@v1
+      env:
+        REGISTRY_ALIAS: u0e8i1r4
+        REPOSITORY: saleor
+      with:
+        mask-password: 'true'
+        registry-type: public
+
 
     - name: Build, tag, and push docker image to Amazon ECR Public
       env:
-        REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+        REGISTRY: public.ecr.aws
+        REGISTRY_ALIAS: u0e8i1r4
         REPOSITORY: saleor
         IMAGE_TAG: ${{ github.sha }}
       run: |
