@@ -31,12 +31,18 @@ jobs:
     - name: Build Docker image
       run: docker build -t saleor .
 
-    - name: Login to Amazon ECR
+    - name: Login to Amazon ECR Public
+      id: login-ecr-public
+      uses: aws-actions/amazon-ecr-login@v1
+      with:
+        mask-password: 'true'
+        registry-type: public
+
+    - name: Build, tag, and push docker image to Amazon ECR Public
+      env:
+        REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+        REPOSITORY: ${{ secrets.ECR_URL }}/saleor
+        IMAGE_TAG: ${{ github.sha }}
       run: |
-        aws ecr-public get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_URL }}
-
-    - name: Tag Docker Image
-      run: docker tag saleor:latest ${{ secrets.ECR_URL }}/saleor:latest
-
-    - name: Push to Amazon ECR
-      run: docker push ${{ secrets.ECR_URL }}/saleor:latest
+        docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+        docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
