@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: saleor-platform
+  name: saleor
+  namespace: saleor
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: saleor-platform
+  template:
+    metadata:
+      labels:
+        app: saleor-platform
+    spec:
+      containers:
+        - env:
+            - name: RSA_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private.pem
+                  name: saleor-rsa-key
+          envFrom:
+            - configMapRef:
+                name: saleor-env
+            - secretRef:
+                name: saleor-secret
+          image: saleor-image
+          imagePullPolicy: Always
+          livenessProbe:
+            initialDelaySeconds: 90
+            tcpSocket:
+              port: 8000
+            timeoutSeconds: 10
+          name: saleor-api
+          ports:
+            - containerPort: 8000
+              name: saleor-api
+          readinessProbe:
+            initialDelaySeconds: 30
+            tcpSocket:
+              port: 8000
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256M
+          volumeMounts:
+            - mountPath: /app/media
+              name: saleor-media-volume
+            - mountPath: /app/static
+              name: saleor-static-volume
+      initContainers:
+        - command:
+            - python
+            - manage.py
+            - makemigrations
+          env:
+            - name: RSA_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private.pem
+                  name: saleor-rsa-key
+          envFrom:
+            - configMapRef:
+                name: saleor-env
+            - secretRef:
+                name: saleor-secret
+          image: saleor-image
+          name: saleor-init-migrations
+          volumeMounts:
+            - mountPath: /app/media
+              name: saleor-media-volume
+        - command:
+            - python
+            - manage.py
+            - migrate
+          env:
+            - name: RSA_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private.pem
+                  name: saleor-rsa-key
+          envFrom:
+            - configMapRef:
+                name: saleor-env
+            - secretRef:
+                name: saleor-secret
+          image: saleor-image
+          name: saleor-init-migrate
+          volumeMounts:
+            - mountPath: /app/media
+              name: saleor-media-volume
+        - command:
+            - python
+            - manage.py
+            - collectstatic
+            - --noinput
+          env:
+            - name: RSA_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private.pem
+                  name: saleor-rsa-key
+          envFrom:
+            - configMapRef:
+                name: saleor-env
+            - secretRef:
+                name: saleor-secret
+          image: saleor-image
+          name: saleor-init-collectstatic
+          volumeMounts:
+            - mountPath: /app/media
+              name: saleor-media-volume
+            - mountPath: /app/static
+              name: saleor-static-volume
+      restartPolicy: Always
+      volumes:
+        - name: saleor-media-volume
+          persistentVolumeClaim:
+            claimName: saleor-media
+        - name: saleor-static-volume
+          persistentVolumeClaim:
+            claimName: saleor-static

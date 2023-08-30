@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: saleor-platform
+  name: saleor-worker
+  namespace: saleor
+spec:
+  selector:
+    matchLabels:
+      app: saleor-platform
+  template:
+    metadata:
+      labels:
+        app: saleor-platform
+    spec:
+      containers:
+        - args:
+            - -A
+            - saleor
+            - --app=saleor.celeryconf:app
+            - worker
+            - --loglevel=info
+            - -B
+          command:
+            - celery
+          env:
+            - name: RSA_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private.pem
+                  name: saleor-rsa-key
+          envFrom:
+            - configMapRef:
+                name: saleor-env
+            - secretRef:
+                name: saleor-secret
+          image: saleor-image
+          imagePullPolicy: Always
+          name: saleor-worker
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256M
+          volumeMounts:
+            - mountPath: /app/media
+              name: saleor-media-volume
+      restartPolicy: Always
+      volumes:
+        - name: saleor-media-volume
+          persistentVolumeClaim:
+            claimName: saleor-media

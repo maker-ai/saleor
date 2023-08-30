@@ -49,14 +49,27 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: 'Checkout'
-        uses: actions/checkout@master
-      - name: 'Kustomize Build'
-        uses: karancode/kustomize-github-action@master
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Decode KUBE_CONFIG
+        run: echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+        env:
+          KUBECONFIG: ${{ github.workspace }}/kubeconfig
+      - name: Deploy Namespace
+        uses: actions-hub/kubectl@master
         with:
-          kustomize_version: '3.0.0'
-          kustomize_build_dir: '../deploy'
-          kustomize_comment: true
-          kustomize_output_file: "gitops/rendered.yaml"
-          kustomize_build_options: "--load_restrictor none"
-          enable_alpha_plugins: true
+          args: apply -f namespace.yaml
+      - name: Deploy Saleor
+        uses: actions-hub/kubectl@master
+        with:
+          args: apply -f deployment-saleor.yaml
+      - name: Deploy Saleor Worker
+        uses: actions-hub/kubectl@master
+        with:
+          args: apply -f deployment-saleor-worker.yaml
+
+
+
+
+
+
