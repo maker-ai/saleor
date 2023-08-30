@@ -51,20 +51,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Decode KUBE_CONFIG
-        run: echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
-        env:
-          KUBECONFIG: ${{ github.workspace }}/kubeconfig
       - name: Deploy Namespace
         uses: actions-hub/kubectl@master
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         with:
           args: apply -f namespace.yaml
       - name: Deploy Saleor
         uses: actions-hub/kubectl@master
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         with:
           args: apply -f deployment-saleor.yaml
       - name: Deploy Saleor Worker
         uses: actions-hub/kubectl@master
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         with:
           args: apply -f deployment-saleor-worker.yaml
 
