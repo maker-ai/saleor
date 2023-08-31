@@ -63,15 +63,20 @@ jobs:
           mask-password: 'true'
           registry-type: public
 
-      # Update the image in the Kubernetes deployment
       - name: Update deployment image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
           ECR_REPOSITORY: saleor
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          echo "ECR_REGISTRY=$ECR_REGISTRY"
+          echo "ECR_REPOSITORY=$ECR_REPOSITORY"
+          echo "IMAGE_TAG=$IMAGE_TAG"
           sed -i "s|<ECR_IMAGE>|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" ./deployment-saleor.yml
           sed -i "s|<ECR_IMAGE>|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" ./deployment-saleor-worker.yml
+
+      - name: Print deployment file content
+        run: cat ./deployment-saleor.yml
 
       - name: Deploy to cluster saleor
         uses: kodermax/kubectl-aws-eks@master
