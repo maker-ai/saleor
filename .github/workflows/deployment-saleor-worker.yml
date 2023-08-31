@@ -28,25 +28,16 @@ spec:
             - name: RSA_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  key: private.pem
-                  name: saleor-rsa-key
+                  name: saleor-secrets-multiline
+                  key: RSA_PRIVATE_KEY
           envFrom:
-            - configMapRef:
-                name: saleor-env
             - secretRef:
-                name: saleor-secret
-          image: saleor-image
+                name: saleor-secrets
+          image: <ECR_PUBLIC_REGISTRY_URL>/saleor:<IMAGE_TAG>
           imagePullPolicy: Always
           name: saleor-worker
           resources:
             requests:
               cpu: 100m
               memory: 256M
-          volumeMounts:
-            - mountPath: /app/media
-              name: saleor-media-volume
       restartPolicy: Always
-      volumes:
-        - name: saleor-media-volume
-          persistentVolumeClaim:
-            claimName: saleor-media
