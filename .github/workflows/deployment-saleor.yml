@@ -6,7 +6,7 @@ metadata:
   name: saleor
   namespace: saleor
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: saleor-platform

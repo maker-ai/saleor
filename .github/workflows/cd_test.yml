@@ -67,4 +67,4 @@ jobs:
         KUBECTL_VERSION: "v1.27.0"
         IAM_VERSION: "0.6.11"
       with:
-        args: rollout status deployment/saleor-api -n saleor
+        args: rollout status deployment/saleor -n saleor
