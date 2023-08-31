@@ -33,7 +33,7 @@ spec:
           envFrom:
             - secretRef:
                 name: saleor-secrets
-          image: <ECR_PUBLIC_REGISTRY_URL>/saleor:<IMAGE_TAG>
+          image: <ECR_IMAGE>
           imagePullPolicy: Always
           name: saleor-worker
           resources:

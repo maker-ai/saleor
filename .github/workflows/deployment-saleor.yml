@@ -25,7 +25,7 @@ spec:
           envFrom:
             - secretRef:
                 name: saleor-secrets
-          image: <ECR_PUBLIC_REGISTRY_URL>/saleor:<IMAGE_TAG>
+          image: <ECR_IMAGE>
           imagePullPolicy: Always
           livenessProbe:
             initialDelaySeconds: 90
@@ -59,7 +59,7 @@ spec:
           envFrom:
             - secretRef:
                 name: saleor-secrets
-          image: <ECR_PUBLIC_REGISTRY_URL>/saleor:<IMAGE_TAG>
+          image: <ECR_IMAGE>
           name: saleor-init-migrations
         - command:
             - python
@@ -74,7 +74,7 @@ spec:
           envFrom:
             - secretRef:
                 name: saleor-secrets
-          image: <ECR_PUBLIC_REGISTRY_URL>/saleor:<IMAGE_TAG>
+          image: <ECR_IMAGE>
           name: saleor-init-migrate
         - command:
             - python
@@ -90,6 +90,6 @@ spec:
           envFrom:
             - secretRef:
                 name: saleor-secrets
-          image: <ECR_PUBLIC_REGISTRY_URL>/saleor:<IMAGE_TAG>
+          image: <ECR_IMAGE>
           name: saleor-init-collectstatic
       restartPolicy: Always
