@@ -23,5 +23,4 @@ jobs:
         application_name: Saleor Core
         environment_name: SaleorCore-env
         region: eu-west-1
-        version_label: ${{ github.sha }}
         zip_file: deploy.zip
