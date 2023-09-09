@@ -14,6 +14,7 @@ from ...checkout.utils import get_valid_collection_points_for_checkout
 from ...core.taxes import zero_money, zero_taxed_money
 from ...core.utils.lazyobjects import unwrap_lazy
 from ...payment.interface import ListStoredPaymentMethodsRequestData
+from ...permission.auth_filters import AuthorizationFilters
 from ...permission.enums import (
     AccountPermissions,
     CheckoutPermissions,
@@ -477,7 +478,13 @@ class Checkout(ModelObjectType[models.Checkout]):
     )
     user = graphene.Field(
         "saleor.graphql.account.types.User",
-        description="The user assigned to the checkout.",
+        description=(
+            "The user assigned to the checkout. Requires one of the following "
+            "permissions: "
+            f"{AccountPermissions.MANAGE_USERS.name}, "
+            f"{PaymentPermissions.HANDLE_PAYMENTS.name}, "
+            f"{AuthorizationFilters.OWNER.name}."
+        ),
     )
     channel = graphene.Field(
         Channel,
@@ -803,7 +810,10 @@ class Checkout(ModelObjectType[models.Checkout]):
             return None
         requestor = get_user_or_app_from_context(info.context)
         check_is_owner_or_has_one_of_perms(
-            requestor, root.user, AccountPermissions.MANAGE_USERS
+            requestor,
+            root.user,
+            AccountPermissions.MANAGE_USERS,
+            PaymentPermissions.HANDLE_PAYMENTS,
         )
         return root.user
 
@@ -937,10 +947,24 @@ class Checkout(ModelObjectType[models.Checkout]):
     @prevent_sync_event_circular_query
     @plugin_manager_promise_callback
     def resolve_available_payment_gateways(
-        root: models.Checkout, _info: ResolveInfo, manager
+        root: models.Checkout, info: ResolveInfo, manager
     ):
-        return manager.list_payment_gateways(
-            currency=root.currency, checkout=root, channel_slug=root.channel.slug
+        checkout_info = CheckoutInfoByCheckoutTokenLoader(info.context).load(root.token)
+        checkout_lines_info = CheckoutLinesInfoByCheckoutTokenLoader(info.context).load(
+            root.token
+        )
+
+        def get_available_payment_gateways(results):
+            (checkout, lines_info) = results
+            return manager.list_payment_gateways(
+                currency=root.currency,
+                checkout_info=checkout,
+                checkout_lines=lines_info,
+                channel_slug=root.channel.slug,
+            )
+
+        return Promise.all([checkout_info, checkout_lines_info]).then(
+            get_available_payment_gateways
         )
 
     @staticmethod

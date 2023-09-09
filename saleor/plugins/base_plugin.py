@@ -32,7 +32,14 @@ from ..payment.interface import (
     ListStoredPaymentMethodsRequestData,
     PaymentData,
     PaymentGateway,
+    PaymentGatewayInitializeTokenizationRequestData,
+    PaymentGatewayInitializeTokenizationResponseData,
     PaymentMethodData,
+    PaymentMethodInitializeTokenizationRequestData,
+    PaymentMethodProcessTokenizationRequestData,
+    PaymentMethodTokenizationResponseData,
+    StoredPaymentMethodRequestDeleteData,
+    StoredPaymentMethodRequestDeleteResponseData,
     TransactionActionData,
     TransactionSessionResult,
 )
@@ -49,6 +56,7 @@ if TYPE_CHECKING:
     from ..core.middleware import Requestor
     from ..core.notify_events import NotifyEventType
     from ..core.taxes import TaxData, TaxType
+    from ..csv.models import ExportFile
     from ..discount.models import Sale, Voucher
     from ..giftcard.models import GiftCard
     from ..invoice.models import Invoice
@@ -554,7 +562,7 @@ class BasePlugin:
     #
     # Overwrite this method if you need to trigger specific logic when a fulfillment is
     # created.
-    fulfillment_created: Callable[["Fulfillment", Any], Any]
+    fulfillment_created: Callable[["Fulfillment", bool, Any], Any]
 
     # Trigger when fulfillment is cancelled.
     #
@@ -661,6 +669,12 @@ class BasePlugin:
     # status is changed.
     gift_card_status_changed: Callable[["GiftCard", None], None]
 
+    # Trigger when gift cards export is completed.
+    #
+    # Overwrite this method if you need to trigger specific logic after a gift cards
+    # export is completed.
+    gift_card_export_completed: Callable[["ExportFile", None], None]
+
     initialize_payment: Callable[
         [dict, Optional[InitializedPaymentResponse]], InitializedPaymentResponse
     ]
@@ -686,6 +700,38 @@ class BasePlugin:
     list_stored_payment_methods: Callable[
         ["ListStoredPaymentMethodsRequestData", list["PaymentMethodData"]],
         list["PaymentMethodData"],
+    ]
+
+    stored_payment_method_request_delete: Callable[
+        [
+            "StoredPaymentMethodRequestDeleteData",
+            "StoredPaymentMethodRequestDeleteResponseData",
+        ],
+        "StoredPaymentMethodRequestDeleteResponseData",
+    ]
+
+    payment_gateway_initialize_tokenization: Callable[
+        [
+            "PaymentGatewayInitializeTokenizationRequestData",
+            "PaymentGatewayInitializeTokenizationResponseData",
+        ],
+        "PaymentGatewayInitializeTokenizationResponseData",
+    ]
+
+    payment_method_initialize_tokenization: Callable[
+        [
+            "PaymentMethodInitializeTokenizationRequestData",
+            "PaymentMethodTokenizationResponseData",
+        ],
+        "PaymentMethodTokenizationResponseData",
+    ]
+
+    payment_method_process_tokenization: Callable[
+        [
+            "PaymentMethodProcessTokenizationRequestData",
+            "PaymentMethodTokenizationResponseData",
+        ],
+        "PaymentMethodTokenizationResponseData",
     ]
 
     # Trigger when menu is created.
@@ -966,6 +1012,12 @@ class BasePlugin:
     # variant metadata is updated.
     product_variant_metadata_updated: Callable[["ProductVariant", Any], Any]
 
+    # Trigger when a product export is completed.
+    #
+    # Overwrite this method if you need to trigger specific logic after a product
+    # export is completed.
+    product_export_completed: Callable[["ExportFile", None], None]
+
     refund_payment: Callable[["PaymentData", Any], GatewayResponse]
 
     # Trigger when sale is created.
@@ -1153,7 +1205,11 @@ class BasePlugin:
         return previous_value
 
     def get_payment_gateways(
-        self, currency: Optional[str], checkout: Optional["Checkout"], previous_value
+        self,
+        currency: Optional[str],
+        checkout_info: Optional["CheckoutInfo"],
+        checkout_lines: Optional[Iterable["CheckoutLineInfo"]],
+        previous_value,
     ) -> List["PaymentGateway"]:
         payment_config = (
             self.get_payment_config(previous_value)

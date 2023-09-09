@@ -297,9 +297,8 @@ def order_fulfilled(
             order=order, user=user, app=app, fulfillment_lines=fulfillment_lines
         )
         call_event(manager.order_updated, order)
-
         for fulfillment in fulfillments:
-            call_event(manager.fulfillment_created, fulfillment)
+            call_event(manager.fulfillment_created, fulfillment, notify_customer)
 
         if order.status == OrderStatus.FULFILLED:
             call_event(manager.order_fulfilled, order)
@@ -564,7 +563,7 @@ def approve_fulfillment(
         update_order_status(order)
 
         call_event(manager.order_updated, order)
-        call_event(manager.fulfillment_approved, fulfillment)
+        call_event(manager.fulfillment_approved, fulfillment, notify_customer)
         if order.status == OrderStatus.FULFILLED:
             call_event(manager.order_fulfilled, order)
 
@@ -731,7 +730,7 @@ def automatically_fulfill_digital_lines(
     with traced_atomic_transaction():
         if not digital_lines_data:
             return
-        fulfillment, _ = Fulfillment.objects.get_or_create(order=order)
+        fulfillment, created = Fulfillment.objects.get_or_create(order=order)
 
         fulfillments = []
         lines_info = []
@@ -767,6 +766,8 @@ def automatically_fulfill_digital_lines(
         send_fulfillment_confirmation_to_customer(
             order, fulfillment, user=order.user, app=None, manager=manager
         )
+        if created:
+            manager.fulfillment_created(fulfillment)
         update_order_status(order)
 
 

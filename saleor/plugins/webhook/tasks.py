@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Ty
 from urllib.parse import unquote, urlparse, urlunparse
 
 import boto3
-import requests
 from botocore.exceptions import ClientError
 from celery import group
 from celery.exceptions import MaxRetriesExceededError, Retry
@@ -17,10 +16,12 @@ from django.core.cache import cache
 from django.urls import reverse
 from google.cloud import pubsub_v1
 from requests.exceptions import RequestException
+from requests_hardened.ip_filter import InvalidIPAddress
 
 from ...app.headers import AppHeaders, DeprecatedAppHeaders
 from ...celeryconf import app
 from ...core import EventDeliveryStatus
+from ...core.http_client import HTTPClient
 from ...core.models import EventDelivery, EventPayload
 from ...core.tracing import webhooks_opentracing_trace
 from ...core.utils import build_absolute_uri
@@ -108,7 +109,9 @@ def create_deliveries_for_subscriptions(
             subscribable_object=subscribable_object,
             subscription_query=webhook.subscription_query,
             request=initialize_request(
-                requestor, event_type in WebhookEventSyncType.ALL, event_type=event_type
+                requestor,
+                event_type in WebhookEventSyncType.ALL,
+                event_type=event_type,
             ),
             app=webhook.app,
         )
@@ -117,7 +120,6 @@ def create_deliveries_for_subscriptions(
                 "No payload was generated with subscription for event: %s" % event_type
             )
             continue
-
         event_payload = EventPayload(payload=json.dumps({**data}))
         event_payloads.append(event_payload)
         event_deliveries.append(
@@ -184,20 +186,32 @@ def create_delivery_for_subscription_sync_event(
 
 
 def trigger_webhooks_async(
-    data, event_type, webhooks, subscribable_object=None, requestor=None
+    data,  # deprecated, legacy_data_generator should be used instead
+    event_type,
+    webhooks,
+    subscribable_object=None,
+    requestor=None,
+    legacy_data_generator=None,
 ):
     """Trigger async webhooks - both regular and subscription.
 
     :param data: used as payload in regular webhooks.
+        Note: this is a legacy parameter, thus it is optional; if it's not provided,
+        `legacy_data_generator` function is used to generate the payload when needed.
     :param event_type: used in both webhook types as event type.
     :param webhooks: used in both webhook types, queryset of async webhooks.
     :param subscribable_object: subscribable object used in subscription webhooks.
     :param requestor: used in subscription webhooks to generate meta data for payload.
+    :param legacy_data_generator: used to generate payload for regular webhooks.
     """
     regular_webhooks, subscription_webhooks = group_webhooks_by_subscription(webhooks)
     deliveries = []
-
     if regular_webhooks:
+        if legacy_data_generator:
+            data = legacy_data_generator()
+        elif data is None:
+            raise NotImplementedError("No payload was provided for regular webhooks.")
+
         payload = EventPayload.objects.create(payload=data)
         deliveries.extend(
             create_event_delivery_list_for_webhooks(
@@ -393,7 +407,8 @@ def send_webhook_using_http(
         headers.update(custom_headers)
 
     try:
-        response = requests.post(
+        response = HTTPClient.send_request(
+            "POST",
             target_url,
             data=message,
             headers=headers,
@@ -402,19 +417,23 @@ def send_webhook_using_http(
         )
     except RequestException as e:
         if e.response:
-            result = WebhookResponse(
+            return WebhookResponse(
                 content=e.response.text,
                 status=EventDeliveryStatus.FAILED,
                 request_headers=headers,
                 response_headers=dict(e.response.headers),
                 response_status_code=e.response.status_code,
             )
+
+        if isinstance(e, InvalidIPAddress):
+            message = "Invalid IP address"
         else:
-            result = WebhookResponse(
-                content=str(e),
-                status=EventDeliveryStatus.FAILED,
-                request_headers=headers,
-            )
+            message = str(e)
+        result = WebhookResponse(
+            content=message,
+            status=EventDeliveryStatus.FAILED,
+            request_headers=headers,
+        )
         return result
 
     return WebhookResponse(
